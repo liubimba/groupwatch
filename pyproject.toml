@@ -1,0 +1,37 @@
+[project]
+name = "groupwatch"
+version = "0.1.0"
+description = "Watches thousands of Facebook groups for new posts through a paced queue and a pool of live browser sessions"
+readme = "README.md"
+authors = [
+    { name = "liubimba", email = "bluerayy123@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "rich>=15.0.0",
+]
+
+[project.scripts]
+groupwatch = "groupwatch.cli:main"
+
+[project.optional-dependencies]
+live = [
+    "playwright>=1.63.0",
+]
+sheets = [
+    "gspread>=6.2.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.12,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
