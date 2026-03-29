@@ -1,6 +1,6 @@
 # groupwatch
 
-[English](./README.md)
+[Сайт](https://liubimba.github.io/groupwatch/) · [English](./README.md)
 
 Мониторинг новых постов в группах Facebook с выгрузкой в CSV или Google
 Таблицу. Рассчитан на тысячи групп. На таком объёме сложность не в парсинге, а в

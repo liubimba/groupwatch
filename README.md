@@ -1,6 +1,6 @@
 # groupwatch
 
-[Читать по-русски](./README.ru.md)
+[Site](https://liubimba.github.io/groupwatch/) · [Читать по-русски](./README.ru.md)
 
 Watches a list of Facebook groups for new posts and appends them to a CSV file
 or a Google Sheet. It is built for thousands of groups, where the hard part is

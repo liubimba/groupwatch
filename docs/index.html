@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>groupwatch: мониторинг тысяч групп Facebook</title>
+<meta name="description" content="Новые посты из тысяч групп Facebook в одной Google Таблице. Очередь обхода с паузами, несколько живых сессий, журнал ошибок.">
+<meta property="og:title" content="groupwatch: мониторинг тысяч групп Facebook">
+<meta property="og:description" content="Новые посты из тысяч групп в одной таблице. Очередь с паузами, несколько сессий, журнал ошибок.">
+<meta property="og:image" content="https://liubimba.github.io/groupwatch/demo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Onest:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #eef1f4;
+  --sheet: #ffffff;
+  --ink: #16202a;
+  --muted: #56636f;
+  --grid: #d3dae1;
+  --new: #1b7f50;
+  --new-bg: #e2f3ea;
+  --stop: #b8322a;
+  --stop-bg: #fbe7e5;
+  --wait: #93600f;
+  --focus: #2458c6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #151b21;
+    --sheet: #1d252d;
+    --ink: #e7ecf1;
+    --muted: #9aa7b3;
+    --grid: #33404b;
+    --new: #5fcf97;
+    --new-bg: #173628;
+    --stop: #f0877e;
+    --stop-bg: #3d1f1c;
+    --wait: #e2b360;
+    --focus: #8fb0ff;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 17px/1.55 "Onest", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+a { color: inherit; }
+a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+header.top { display: flex; justify-content: space-between; align-items: center; padding: 22px 0; }
+.logo { font: 700 18px/1 "Unbounded", sans-serif; text-decoration: none; }
+.top nav a { color: var(--muted); text-decoration: none; margin-left: 22px; font-size: 15px; }
+.top nav a:hover { color: var(--ink); }
+
+.hero { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 10fr); gap: 48px; align-items: center; padding: 48px 0 96px; }
+h1 {
+  font: 700 clamp(2.2rem, 4.6vw, 4rem)/1 "Unbounded", sans-serif;
+  letter-spacing: -0.035em;
+  margin: 0 0 28px;
+}
+.lead { font-size: 19px; color: var(--muted); max-width: 30em; margin: 0 0 32px; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.btn {
+  display: inline-block; padding: 14px 22px; border-radius: 6px; font-weight: 600; font-size: 16px;
+  text-decoration: none; border: 2px solid var(--ink);
+}
+.btn.primary { background: var(--ink); color: var(--paper); }
+.btn:hover { transform: translateY(-1px); }
+
+.sheet { background: var(--sheet); border: 1px solid var(--grid); border-radius: 8px; overflow: hidden; }
+.sheet-bar { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 14px 16px; border-bottom: 1px solid var(--grid); font-size: 14px; }
+.stat b { font-weight: 600; }
+.sessions { display: flex; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--grid); flex-wrap: wrap; }
+.sess { font-size: 13px; padding: 4px 10px; border-radius: 99px; background: var(--paper); color: var(--muted); transition: background .3s, color .3s; }
+.sess.on { background: var(--new-bg); color: var(--new); }
+.sess.off { background: var(--stop-bg); color: var(--stop); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
+th { text-align: left; font-weight: 500; color: var(--muted); padding: 8px 12px; border-bottom: 1px solid var(--grid); background: var(--paper); }
+td { padding: 9px 12px; border-bottom: 1px solid var(--grid); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+th:nth-child(1), td:nth-child(1) { width: 64px; color: var(--muted); }
+th:nth-child(2), td:nth-child(2) { width: 30%; }
+th:nth-child(3), td:nth-child(3) { width: 22%; }
+tr.fresh td { animation: flash 1.6s ease-out; }
+tr.err td { color: var(--stop); background: var(--stop-bg); }
+@keyframes flash { from { background: var(--new-bg); } to { background: transparent; } }
+
+section { padding: 88px 0; border-top: 1px solid var(--grid); }
+h2 { font: 700 clamp(1.7rem, 3.4vw, 2.7rem)/1.08 "Unbounded", sans-serif; letter-spacing: -0.03em; margin: 0 0 24px; max-width: 18em; }
+h3 { font-size: 19px; font-weight: 600; margin: 0 0 8px; }
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; margin-top: 48px; }
+.cols p, .prose p { color: var(--muted); margin: 0; }
+.prose { max-width: 38em; }
+.prose p + p { margin-top: 14px; }
+
+.flow { margin-top: 48px; overflow-x: auto; }
+.flow svg { min-width: 760px; width: 100%; height: auto; display: block; }
+.flow text { font-family: "Onest", sans-serif; font-size: 15px; fill: var(--ink); }
+.flow .sub { fill: var(--muted); font-size: 13px; }
+.flow .box { fill: var(--sheet); stroke: var(--grid); }
+.flow .line { stroke: var(--muted); fill: none; stroke-width: 1.5; }
+.flow .stopline { stroke: var(--stop); fill: none; stroke-width: 1.5; stroke-dasharray: 4 4; }
+.flow .stoptext { fill: var(--stop); }
+.flow-list { display: none; list-style: none; margin: 40px 0 0; padding: 0; }
+.flow-list li { background: var(--sheet); border: 1px solid var(--grid); border-radius: 6px; padding: 12px 16px; position: relative; }
+.flow-list li + li { margin-top: 22px; }
+.flow-list li + li::before { content: ""; position: absolute; left: 24px; top: -23px; height: 22px; border-left: 1.5px solid var(--muted); }
+.flow-list span { display: block; color: var(--muted); font-size: 14px; }
+.flow-list .err { border-color: var(--stop); color: var(--stop); }
+.flow-list .err::before { border-left-style: dashed; border-color: var(--stop); }
+
+.calc { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: end; margin-top: 40px; }
+.field { margin-bottom: 28px; }
+.field label { display: flex; justify-content: space-between; font-weight: 500; margin-bottom: 10px; }
+.field output { font-weight: 600; }
+input[type=range] { width: 100%; accent-color: var(--ink); }
+.answer { font: 700 clamp(3rem, 8vw, 6.5rem)/0.9 "Unbounded", sans-serif; letter-spacing: -0.04em; }
+.answer-note { color: var(--muted); margin-top: 16px; max-width: 26em; }
+
+.shot { margin: 40px 0 0; max-width: 860px; }
+.shot img { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--grid); display: block; }
+pre { background: var(--sheet); border: 1px solid var(--grid); border-radius: 8px; padding: 18px 20px; overflow-x: auto; font-size: 14px; margin: 24px 0 0; }
+
+.plan { list-style: none; padding: 0; margin: 40px 0 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; counter-reset: step; }
+.plan li { counter-increment: step; border-top: 3px solid var(--ink); padding-top: 18px; }
+.plan li::before { content: counter(step); font: 700 15px/1 "Unbounded", sans-serif; display: block; margin-bottom: 14px; }
+.plan .when { font-weight: 600; margin-bottom: 6px; }
+.plan p { color: var(--muted); margin: 0; }
+
+footer { border-top: 1px solid var(--grid); padding: 40px 0 56px; color: var(--muted); font-size: 15px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+
+@media (max-width: 900px) {
+  .hero, .calc { grid-template-columns: 1fr; gap: 40px; }
+  .cols, .plan { grid-template-columns: 1fr; gap: 28px; }
+  .hero { padding: 24px 0 64px; }
+  section { padding: 64px 0; }
+}
+@media (max-width: 560px) {
+  .wrap { padding: 0 16px; }
+  .top nav a:not(.gh) { display: none; }
+  .flow { display: none; }
+  .flow-list { display: block; }
+  th:nth-child(3), td:nth-child(3) { display: none; }
+  th:nth-child(2), td:nth-child(2) { width: 42%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  tr.fresh td { animation: none; }
+  .btn:hover { transform: none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="logo" href="#">groupwatch</a>
+    <nav>
+      <a href="#how">Как устроено</a>
+      <a href="#speed">Скорость</a>
+      <a href="#pilot">Пилот</a>
+      <a class="gh" href="https://github.com/liubimba/groupwatch">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="hero">
+      <div>
+        <h1>3000 групп Facebook. Новые посты в одной таблице.</h1>
+        <p class="lead">Скрипт по очереди обходит группы через несколько живых браузерных сессий и записывает каждый новый пост в Google Таблицу. Если группа не открылась или аккаунт попал под проверку, это сразу видно в журнале.</p>
+        <div class="actions">
+          <a class="btn primary" href="#pilot">План пилота на 100 групп</a>
+          <a class="btn" href="https://github.com/liubimba/groupwatch">Код на GitHub</a>
+        </div>
+      </div>
+
+      <div class="sheet" aria-label="Симуляция обхода групп">
+        <div class="sheet-bar">
+          <span class="stat">Пройдено <b id="s-done">0</b> из 3000</span>
+          <span class="stat">новых постов <b id="s-new">0</b></span>
+          <span class="stat">повторов отсеяно <b id="s-dup">0</b></span>
+        </div>
+        <div class="sessions" id="sessions"></div>
+        <table>
+          <thead><tr><th>Время</th><th>Группа</th><th>Автор</th><th>Текст</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <section id="how">
+      <h2>Упирается всё не в парсер, а в аккаунты</h2>
+      <div class="prose">
+        <p>Официальный API к лентам групп Facebook закрыт, поэтому посты читает обычный браузер под обычным аккаунтом. Слишком частые заходы с одного аккаунта быстро приводят к проверке личности. Отсюда устройство: не один быстрый скрипт, а очередь, которая раздаёт группы нескольким аккаунтам и держит паузы.</p>
+      </div>
+      <div class="flow">
+        <svg viewBox="0 0 1000 250" role="img" aria-label="Схема: таблица групп, очередь, пул аккаунтов, браузер, отсев повторов, Google Таблица. Ошибки уходят в журнал.">
+          <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor" style="color:var(--muted)"/></marker></defs>
+          <rect class="box" x="0" y="30" width="150" height="76" rx="6"/>
+          <text x="16" y="62">Список групп</text><text class="sub" x="16" y="84">таблица с ссылками</text>
+          <rect class="box" x="210" y="30" width="150" height="76" rx="6"/>
+          <text x="226" y="62">Очередь</text><text class="sub" x="226" y="84">повторы при сбое</text>
+          <rect class="box" x="420" y="30" width="150" height="76" rx="6"/>
+          <text x="436" y="62">Аккаунты</text><text class="sub" x="436" y="84">паузы, лимит в час</text>
+          <rect class="box" x="630" y="30" width="150" height="76" rx="6"/>
+          <text x="646" y="62">Браузер</text><text class="sub" x="646" y="84">живая сессия</text>
+          <rect class="box" x="840" y="30" width="160" height="76" rx="6"/>
+          <text x="856" y="62">Google Таблица</text><text class="sub" x="856" y="84">только новые посты</text>
+          <path class="line" d="M150 68H206" marker-end="url(#arr)"/>
+          <path class="line" d="M360 68H416" marker-end="url(#arr)"/>
+          <path class="line" d="M570 68H626" marker-end="url(#arr)"/>
+          <path class="line" d="M780 68H836" marker-end="url(#arr)"/>
+          <rect class="box" x="420" y="170" width="360" height="62" rx="6"/>
+          <text class="stoptext" x="436" y="198">Журнал ошибок</text><text class="sub" x="436" y="220">группа не открылась, аккаунт на проверке</text>
+          <path class="stopline" d="M705 106V166"/>
+          <path class="stopline" d="M495 106V166"/>
+          <path class="stopline" d="M285 106V200H416"/>
+        </svg>
+      </div>
+      <ol class="flow-list">
+        <li>Список групп<span>таблица с ссылками</span></li>
+        <li>Очередь<span>повторы при сбое</span></li>
+        <li>Аккаунты<span>паузы, лимит в час</span></li>
+        <li>Браузер<span>живая сессия</span></li>
+        <li>Google Таблица<span>только новые посты</span></li>
+        <li class="err">Журнал ошибок<span>группа не открылась, аккаунт на проверке</span></li>
+      </ol>
+      <div class="cols">
+        <div><h3>Проверка аккаунта не роняет мониторинг</h3><p>Аккаунт, попавший на проверку, встаёт на паузу, а его группы забирают остальные. Вы подтверждаете аккаунт вручную, и он возвращается в работу.</p></div>
+        <div><h3>Повторов в таблице нет</h3><p>Каждый пост узнаётся по id из его ссылки. Группу можно обходить хоть каждый час, в таблицу попадёт только то, чего там ещё не было.</p></div>
+        <div><h3>Закрытые группы</h3><p>В списке групп указано, какие аккаунты в них состоят. Закрытую группу открывает только тот аккаунт, который её видит.</p></div>
+      </div>
+    </section>
+
+    <section id="speed">
+      <h2>Сколько займёт один проход</h2>
+      <div class="prose"><p>Скорость задают паузы между заходами, а не код. Один аккаунт спокойно открывает около 60 групп в час. Чтобы проверять группы чаще, нужно больше аккаунтов.</p></div>
+      <div class="calc">
+        <div>
+          <div class="field">
+            <label for="groups">Групп <output id="groups-out">3000</output></label>
+            <input id="groups" type="range" min="100" max="5000" step="100" value="3000">
+          </div>
+          <div class="field">
+            <label for="accounts">Аккаунтов <output id="accounts-out">10</output></label>
+            <input id="accounts" type="range" min="1" max="30" step="1" value="10">
+          </div>
+        </div>
+        <div>
+          <div class="answer" id="answer">5 ч</div>
+          <p class="answer-note" id="answer-note">Каждая группа проверяется примерно раз в 5 часов.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="demo">
+      <h2>Демо запускается одной командой</h2>
+      <div class="prose"><p>В репозитории есть офлайн-демо: 100 симулированных групп, 3 аккаунта, один из них ловит проверку, пара групп не открывается. Видно, как очередь отдаёт группы другим аккаунтам, как повторы отсеиваются на втором проходе и что попадает в журнал.</p></div>
+      <pre><code>git clone https://github.com/liubimba/groupwatch
+cd groupwatch && uv sync
+uv run groupwatch demo</code></pre>
+      <figure class="shot">
+        <img src="demo.png" width="1360" height="1392" loading="lazy" alt="Экран демо: счётчики групп и новых постов, статусы трёх аккаунтов, журнал ошибок и последние посты">
+      </figure>
+    </section>
+
+    <section id="pilot">
+      <h2>Начинаем с пилота на 100 групп</h2>
+      <div class="prose"><p>Вы сразу видите реальную таблицу и реальную скорость на своих группах и аккаунтах. Масштабируем только после этого.</p></div>
+      <ol class="plan">
+        <li><div class="when">День 1</div><p>Получаю список групп и доступ к аккаунтам, вхожу в каждый аккаунт один раз, настраиваю таблицу и нужные колонки.</p></li>
+        <li><div class="when">Дни 2–3</div><p>Пилот на 100 группах. Проверяю разбор постов на ваших группах, подбираю паузы, показываю таблицу и журнал.</p></li>
+        <li><div class="when">Ещё 2–3 дня</div><p>Все 3000 групп, запуск по расписанию на вашем сервере, инструкция, что делать, если аккаунт попал на проверку.</p></li>
+      </ol>
+    </section>
+  </main>
+
+  <footer>
+    <span>groupwatch: Python, Playwright, Google Sheets</span>
+    <a href="https://github.com/liubimba">github.com/liubimba</a>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const groupsIn = document.getElementById("groups");
+  const accountsIn = document.getElementById("accounts");
+  const perAccount = Math.min(60, 3600 / 55);
+  const fmt = (h) => h < 1 ? `${Math.max(1, Math.round(h * 60))} мин` : `${h < 10 ? Math.round(h * 10) / 10 : Math.round(h)} ч`.replace(".", ",");
+  const calc = () => {
+    const g = +groupsIn.value, a = +accountsIn.value;
+    const h = g / (perAccount * a);
+    document.getElementById("groups-out").textContent = g.toLocaleString("ru-RU");
+    document.getElementById("accounts-out").textContent = a;
+    document.getElementById("answer").textContent = fmt(h);
+    document.getElementById("answer-note").textContent = h > 24
+      ? `Полный проход дольше суток. Для ежедневной проверки нужно от ${Math.ceil(g / (perAccount * 24))} аккаунтов.`
+      : `Каждая группа проверяется примерно раз в ${fmt(h)}.`;
+  };
+  groupsIn.addEventListener("input", calc);
+  accountsIn.addEventListener("input", calc);
+  calc();
+
+  const groups = ["Аренда квартир Москва", "Барахолка Химки", "Работа удалённо", "Мамы Бутово", "Авто с пробегом СПб", "Ремонт и стройка", "Фриланс заказы", "Недвижимость Сочи", "Отдам даром Казань", "IT вакансии"];
+  const authors = ["Анна К.", "Игорь П.", "Марта С.", "Олег В.", "Дмитрий Л.", "Светлана Р.", "Ахмед Н.", "Юлия Т."];
+  const texts = ["Ищу подрядчика на ремонт квартиры, бюджет обсуждаем", "Продаю велосипед, почти новый, самовывоз", "Кто посоветует бухгалтера для ИП?", "Сдаётся студия у метро, без комиссии", "Нужен дизайнер на разовый проект", "Отдам даром детские вещи 2-4 года", "Подскажите хорошего стоматолога", "Ищем менеджера по продажам, удалёнка"];
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
+  const names = ["acc-1", "acc-2", "acc-3", "acc-4"];
+  const state = { done: 1180, fresh: 2143, dup: 1611, tick: 0, paused: null };
+  const sess = document.getElementById("sessions");
+  const rows = document.getElementById("rows");
+  const drawSessions = () => {
+    sess.innerHTML = names.map((n) => n === state.paused
+      ? `<span class="sess off">${n}: на проверке</span>`
+      : `<span class="sess on">${n}: в работе</span>`).join("");
+  };
+  const clock = () => new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  const addRow = (cells, cls, animate) => {
+    const tr = document.createElement("tr");
+    if (cls) tr.className = cls;
+    if (animate && !cls) tr.className = "fresh";
+    cells.forEach((c) => { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
+    rows.prepend(tr);
+    while (rows.children.length > 7) rows.lastChild.remove();
+  };
+  const post = () => [clock(), pick(groups), pick(authors), pick(texts)];
+  const counters = () => {
+    document.getElementById("s-done").textContent = state.done.toLocaleString("ru-RU");
+    document.getElementById("s-new").textContent = state.fresh.toLocaleString("ru-RU");
+    document.getElementById("s-dup").textContent = state.dup.toLocaleString("ru-RU");
+  };
+  const step = (animate) => {
+    state.tick++;
+    state.done = state.done >= 3000 ? 1 : state.done + 1 + Math.floor(Math.random() * 3);
+    state.dup += Math.floor(Math.random() * 3);
+    if (state.tick % 14 === 9) {
+      state.paused = state.paused ? null : "acc-3";
+      if (state.paused) addRow([clock(), "журнал", "acc-3", "аккаунт на проверке, группы переданы другим"], "err", animate);
+      drawSessions();
+      return counters();
+    }
+    state.fresh++;
+    addRow(post(), "", animate);
+    counters();
+  };
+  drawSessions();
+  for (let i = 0; i < 7; i++) addRow(post(), "", false);
+  counters();
+  if (!matchMedia("(prefers-reduced-motion: reduce)").matches) setInterval(() => step(true), 1400);
+})();
+</script>
+</body>
+</html>
